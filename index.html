@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Looksmaxxing Fact-Checker Bot</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --bubble-user: #2b6cff;
+    --bubble-bot: #232733;
+    --text: #e8eaf0;
+    --muted: #8a90a3;
+    --strong: #3ddc97;
+    --weak: #f5c542;
+    --debunked: #ff5c5c;
+    --accent: #7c9bff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px 12px;
+  }
+  .app {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    height: 90vh;
+  }
+  header {
+    padding: 4px 4px 16px;
+  }
+  header h1 {
+    font-size: 1.3rem;
+    margin: 0 0 4px;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+  .chat {
+    flex: 1;
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid #22262f;
+  }
+  .msg {
+    max-width: 82%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--bubble-user);
+    border-bottom-right-radius: 4px;
+  }
+  .msg.bot {
+    align-self: flex-start;
+    background: var(--bubble-bot);
+    border-bottom-left-radius: 4px;
+  }
+  .verdict-tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 6px;
+  }
+  .tag-strong { background: rgba(61,220,151,0.15); color: var(--strong); }
+  .tag-weak { background: rgba(245,197,66,0.15); color: var(--weak); }
+  .tag-debunked { background: rgba(255,92,92,0.15); color: var(--debunked); }
+  .suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px 4px 0;
+  }
+  .chip {
+    background: #1d212b;
+    border: 1px solid #2a2f3b;
+    color: var(--accent);
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .chip:hover { background: #262b38; }
+  form {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid #2a2f3b;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 0.92rem;
+  }
+  input[type="text"]:focus { outline: 1px solid var(--accent); }
+  button {
+    background: var(--accent);
+    color: #0f1115;
+    border: none;
+    border-radius: 12px;
+    padding: 0 18px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.72rem;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🔍 Looksmaxxing Fact-Checker</h1>
+    <p>Ask about a claim you've seen online — mewing, retinol, cold showers, and more. Evidence-graded, no hype.</p>
+  </header>
+
+  <div class="chat" id="chat"></div>
+
+  <div class="suggestions" id="suggestions"></div>
+
+  <form id="chatForm">
+    <input type="text" id="userInput" placeholder="e.g. does mewing actually work?" autocomplete="off" />
+    <button type="submit">Ask</button>
+  </form>
+
+  <footer>Rule-based demo · not medical advice · sources noted in each answer</footer>
+</div>
+
+<script>
+// ---- Knowledge base: keyword -> claim card ----
+const KB = [
+  {
+    keywords: ["mewing", "jaw", "jawline", "tongue posture"],
+    claim: "Mewing fixes your jawline",
+    verdict: "weak",
+    text: "No quality clinical trials support dramatic jaw restructuring from tongue posture in adults. Bone doesn't reshape that way post-growth-plate closure. May offer mild postural/breathing benefits, but the viral 'jawline transformation' claims are unproven.",
+    source: "British Orthodontic Society has publicly stated there's no evidence base for mewing's structural claims."
+  },
+  {
+    keywords: ["cold shower", "cold plunge", "ice bath", "testosterone"],
+    claim: "Cold showers raise testosterone",
+    verdict: "debunked",
+    text: "Cold exposure has some evidence for mood and recovery, but controlled studies show no meaningful, lasting testosterone increase from cold showers specifically.",
+    source: "Reviewed in sports medicine literature on cold water immersion and hormone response."
+  },
+  {
+    keywords: ["retinol", "retinoid", "wrinkle", "anti-aging", "acne cream"],
+    claim: "Retinol improves skin (acne & aging)",
+    verdict: "strong",
+    text: "One of the most evidence-backed compounds in skincare. Multiple RCTs support retinoids for acne and photoaging. Real side effects (dryness, irritation) exist, so start low-and-slow.",
+    source: "Backed by decades of dermatology RCTs; recommended by AAD guidelines."
+  },
+  {
+    keywords: ["mouth tape", "mouth taping", "sleep", "snoring"],
+    claim: "Mouth taping improves sleep",
+    verdict: "weak",
+    text: "Popular on social media, but current evidence is thin — mostly small or self-reported studies. May help mild cases of mouth breathing, but it's not a validated sleep-apnea treatment and can be unsafe for undiagnosed apnea.",
+    source: "Sleep medicine researchers have flagged the lack of rigorous RCTs behind mouth-taping trend claims."
+  },
+  {
+    keywords: ["finasteride", "hair loss", "balding", "dht", "minoxidil"],
+    claim: "Finasteride / minoxidil treat hair loss",
+    verdict: "strong",
+    text: "Genuinely effective for many, backed by strong clinical evidence. But finasteride carries a real (if uncommon) risk of sexual side effects — an informed decision, not a free lunch.",
+    source: "FDA-approved based on multi-year RCTs; side effect profile documented in prescribing data."
+  },
+  {
+    keywords: ["jelqing", "penis enlargement", "pe exercises"],
+    claim: "Jelqing / manual 'enlargement' exercises work",
+    verdict: "debunked",
+    text: "No credible clinical evidence supports permanent enlargement from manual stretching techniques. Real risk of tissue damage. Widely circulated in forums, not supported by urology research.",
+    source: "Urological literature reviews find no support for these techniques; documents injury risk instead."
+  },
+  {
+    keywords: ["fasting", "intermittent fasting", "looksmax diet", "fat loss"],
+    claim: "Intermittent fasting is uniquely superior for fat loss / 'looksmaxxing'",
+    verdict: "weak",
+    text: "IF can help some people eat less overall, but studies show it's not metabolically superior to any other calorie deficit approach for fat loss. Sustainability matters more than the method.",
+    source: "Multiple RCTs comparing IF to standard calorie restriction show comparable outcomes."
+  },
+  {
+    keywords: ["canthal tilt", "hunter eyes", "eye shape"],
+    claim: "You can change your canthal tilt with exercises",
+    verdict: "debunked",
+    text: "Canthal tilt is determined by bone and soft tissue structure. No exercise or 'eye training' changes it. Only surgical canthoplasty alters it, which carries real risk and cost.",
+    source: "Oculoplastic surgery literature confirms canthal tilt is structural, not exercise-modifiable."
+  }
+];
+
+const VERDICT_LABEL = { strong: "Strong evidence", weak: "Weak / unproven", debunked: "Debunked" };
+
+const chat = document.getElementById("chat");
+const form = document.getElementById("chatForm");
+const input = document.getElementById("userInput");
+const suggestionsEl = document.getElementById("suggestions");
+
+function addMessage(text, sender) {
+  const div = document.createElement("div");
+  div.className = "msg " + sender;
+  div.innerHTML = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function findMatch(query) {
+  const q = query.toLowerCase();
+  let best = null;
+  let bestScore = 0;
+  for (const entry of KB) {
+    let score = 0;
+    for (const kw of entry.keywords) {
+      if (q.includes(kw)) score++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = entry;
+    }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+function renderAnswer(entry) {
+  const tagClass = "tag-" + entry.verdict;
+  return `<span class="verdict-tag ${tagClass}">${VERDICT_LABEL[entry.verdict]}</span><br>
+  <strong>${entry.claim}</strong><br><br>
+  ${entry.text}<br><br>
+  <span style="color:var(--muted); font-size:0.8rem;">Source: ${entry.source}</span>`;
+}
+
+function handleQuery(query) {
+  addMessage(query, "user");
+  const match = findMatch(query);
+  setTimeout(() => {
+    if (match) {
+      addMessage(renderAnswer(match), "bot");
+    } else {
+      addMessage(
+        "I don't have a verdict on that one yet. Try asking about: mewing, retinol, cold showers, mouth taping, finasteride, fasting, or canthal tilt.",
+        "bot"
+      );
+    }
+  }, 300);
+}
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const val = input.value.trim();
+  if (!val) return;
+  handleQuery(val);
+  input.value = "";
+});
+
+// Suggestion chips
+const sampleQuestions = [
+  "does mewing work?",
+  "cold showers and testosterone?",
+  "is retinol worth it?",
+  "mouth taping for sleep?",
+  "finasteride side effects?"
+];
+sampleQuestions.forEach(q => {
+  const chip = document.createElement("div");
+  chip.className = "chip";
+  chip.textContent = q;
+  chip.onclick = () => handleQuery(q);
+  suggestionsEl.appendChild(chip);
+});
+
+// Greeting
+addMessage("Hey — ask me about a looksmaxxing claim you've seen online, or tap a suggestion below.", "bot");
+</script>
+</body>
+</html>
